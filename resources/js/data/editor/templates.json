@@ -1,0 +1,34 @@
+[
+  {
+    "id": "sports-jersey-basic",
+    "name": "Sports Jersey Basic",
+    "category": "sports",
+    "layout": {
+      "blocks": [
+        { "type": "text", "value": "TEAM PRIME", "font": "Bebas Neue" },
+        { "type": "text", "value": "No. 10", "font": "Inter" }
+      ]
+    }
+  },
+  {
+    "id": "streetwear-drop",
+    "name": "Streetwear Drop",
+    "category": "streetwear",
+    "layout": {
+      "blocks": [
+        { "type": "text", "value": "DROP 24", "font": "Anton" },
+        { "type": "image", "value": "/editor-assets/stock-wave.svg" }
+      ]
+    }
+  },
+  {
+    "id": "minimal-logo-tee",
+    "name": "Minimal Logo Tee",
+    "category": "minimal",
+    "layout": {
+      "blocks": [
+        { "type": "text", "value": "PrimeDraft", "font": "Inter" }
+      ]
+    }
+  }
+]

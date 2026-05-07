@@ -1,0 +1,5 @@
+[
+  { "id": "wave", "name": "Abstract Wave", "src": "/editor-assets/stock-wave.svg", "tags": ["abstract", "streetwear"] },
+  { "id": "leopard", "name": "Leopard Texture", "src": "/editor-assets/stock-leopard.svg", "tags": ["animal", "fashion"] },
+  { "id": "lightning", "name": "Lightning Bolt", "src": "/editor-assets/stock-lightning.svg", "tags": ["sport", "energy"] }
+]

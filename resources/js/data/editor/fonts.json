@@ -1,0 +1,6 @@
+[
+  { "id": "inter", "name": "Inter", "family": "Inter, system-ui, sans-serif", "category": "sans" },
+  { "id": "bebas-neue", "name": "Bebas Neue", "family": "\"Bebas Neue\", Impact, sans-serif", "category": "display" },
+  { "id": "anton", "name": "Anton", "family": "Anton, Impact, sans-serif", "category": "display" },
+  { "id": "space-grotesk", "name": "Space Grotesk", "family": "\"Space Grotesk\", Inter, system-ui, sans-serif", "category": "modern" }
+]

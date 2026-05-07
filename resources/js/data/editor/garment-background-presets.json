@@ -1,0 +1,27 @@
+[
+    {
+        "id": "heather",
+        "label": "Heather knits",
+        "src": "/materials/garment-bg/heather.svg"
+    },
+    {
+        "id": "stripe",
+        "label": "Stripes",
+        "src": "/materials/garment-bg/stripe.svg"
+    },
+    {
+        "id": "denim",
+        "label": "Denim weave",
+        "src": "/materials/garment-bg/denim.svg"
+    },
+    {
+        "id": "camo-soft",
+        "label": "Soft camo",
+        "src": "/materials/garment-bg/camo-soft.svg"
+    },
+    {
+        "id": "sunset-gradient",
+        "label": "Sunset dye",
+        "src": "/materials/garment-bg/sunset.svg"
+    }
+]

@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import 'tailwindcss';
+@custom-variant dark (&:where(.dark, .dark *));
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+@source '../**/*.blade.php';
+@source '../**/*.js';
+@source '../**/*.jsx';
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+:root {
+    --app-bg: #f3f6ff;
+    --app-fg: #0f172a;
+    --surface-bg: rgba(255, 255, 255, 0.88);
+    --surface-border: rgba(99, 102, 241, 0.16);
+}
+
+.dark {
+    --app-bg: #090d1c;
+    --app-fg: #e6eaf4;
+    --surface-bg: rgba(11, 18, 40, 0.82);
+    --surface-border: rgba(56, 189, 248, 0.2);
+}
+
+html,
+body {
+    background-color: var(--app-bg);
+    color: var(--app-fg);
+}
+
+body {
+    min-height: 100vh;
+    background-image:
+        radial-gradient(1200px 480px at 12% -8%, rgba(34, 211, 238, 0.22), transparent 60%),
+        radial-gradient(1100px 520px at 90% -12%, rgba(79, 70, 229, 0.2), transparent 62%);
+    background-attachment: fixed;
+}

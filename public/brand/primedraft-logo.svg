@@ -1,0 +1,15 @@
+<svg width="960" height="240" viewBox="0 0 960 240" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PrimeDraft logo">
+  <defs>
+    <linearGradient id="pdGrad" x1="40" y1="28" x2="200" y2="212" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3EE"/>
+      <stop offset="1" stop-color="#4F46E5"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="192" height="192" rx="40" fill="#0F172A"/>
+  <path d="M72 172V68H124C144 68 160 84 160 104C160 124 144 140 124 140H100V172H72Z" fill="url(#pdGrad)"/>
+  <path d="M100 116H122C128 116 132 111 132 104C132 97 128 92 122 92H100V116Z" fill="#0F172A"/>
+  <path d="M152 172L124 132L149 119L184 172H152Z" fill="#38BDF8"/>
+  <path d="M178 58L196 76L162 110L144 92L178 58Z" fill="#A78BFA"/>
+  <text x="250" y="122" fill="#0F172A" font-size="74" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="700" letter-spacing="1.2">PrimeDraft</text>
+  <text x="252" y="168" fill="#475569" font-size="24" font-family="Inter, Segoe UI, Arial, sans-serif" font-weight="600" letter-spacing="4">AI STUDIO</text>
+</svg>

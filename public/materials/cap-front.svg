@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 320" fill="none">
+  <rect width="500" height="320" fill="#f7f6f2"/>
+  <path d="M 88,228 C 88,128 132,52 250,44 C 368,52 412,128 412,228 Z" fill="white" stroke="#222" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 84,228 L 412,228 L 430,222 C 444,216 445,203 430,198 L 390,196 Q 270,262 88,220 L 84,228 Z" fill="#ece9e4" stroke="#222" stroke-width="2.5" fill-rule="evenodd" stroke-linejoin="round"/>
+  <path d="M 89,222 Q 250,255 408,222" fill="none" stroke="#ccc" stroke-width="1"/>
+  <path d="M 91,221 C 152,208 348,208 409,221" fill="none" stroke="#ddd" stroke-width="1.5" stroke-dasharray="5,4"/>
+  <line x1="250" y1="46" x2="250" y2="226" stroke="#e0e0e0" stroke-width="1.5" stroke-dasharray="6,5"/>
+  <circle cx="250" cy="48" r="9" fill="white" stroke="#888" stroke-width="1.5"/>
+  <path d="M 250,48 Q 140,90 92,220" fill="none" stroke="#e8e8e8" stroke-width="1"/>
+  <path d="M 250,48 Q 360,90 408,220" fill="none" stroke="#e8e8e8" stroke-width="1"/>
+  <rect x="172" y="82" width="156" height="118" rx="5" fill="none" stroke="#c1121f" stroke-width="1.8" stroke-dasharray="9,5"/>
+  <text x="250" y="142" text-anchor="middle" fill="#c1121f" font-size="12" font-family="system-ui,sans-serif" font-weight="600">FRONT PANEL</text>
+  <text x="250" y="160" text-anchor="middle" fill="#a0a0a0" font-size="9" font-family="system-ui,sans-serif">Crown � bill</text>
+</svg>

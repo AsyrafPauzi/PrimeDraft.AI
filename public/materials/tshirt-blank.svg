@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 520" fill="none">
+  <rect width="500" height="520" fill="#f7f6f2"/>
+
+  <!-- T-Shirt main body -->
+  <path
+    d="M 192,50
+       C 178,32 152,28 70,72
+       L 48,84 L 42,90
+       L 36,205
+       L 116,205
+       L 116,148
+       Q 128,130 144,138
+       L 144,468
+       Q 144,478 156,478
+       L 344,478
+       Q 356,478 356,468
+       L 356,138
+       Q 372,130 384,148
+       L 384,205
+       L 464,205
+       L 458,90 L 452,84 L 430,72
+       C 348,28 322,32 308,50
+       Q 274,82 250,82
+       Q 226,82 192,50
+       Z"
+    fill="white"
+    stroke="#222"
+    stroke-width="2.5"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+
+  <!-- Collar inner curve -->
+  <path
+    d="M 192,50 Q 220,84 250,84 Q 280,84 308,50"
+    fill="none"
+    stroke="#555"
+    stroke-width="1.5"
+    stroke-linecap="round"
+  />
+
+  <!-- Sleeve hem lines -->
+  <line x1="36" y1="205" x2="116" y2="205" stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3"/>
+  <line x1="384" y1="205" x2="464" y2="205" stroke="#aaa" stroke-width="1.5" stroke-dasharray="5,3"/>
+
+  <!-- Side seam hints -->
+  <line x1="144" y1="200" x2="144" y2="468" stroke="#e0e0e0" stroke-width="1"/>
+  <line x1="356" y1="200" x2="356" y2="468" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Bottom hem -->
+  <line x1="145" y1="466" x2="355" y2="466" stroke="#ddd" stroke-width="1"/>
+
+  <!-- Dashed print area box -->
+  <rect
+    x="172" y="168" width="156" height="178"
+    rx="5"
+    fill="none"
+    stroke="#b0b0b0"
+    stroke-width="1.5"
+    stroke-dasharray="9,5"
+  />
+
+  <!-- Print area label -->
+  <text
+    x="250" y="260"
+    text-anchor="middle"
+    fill="#c8c8c8"
+    font-size="11"
+    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+    letter-spacing="2"
+    font-weight="500"
+  >PRINT AREA</text>
+</svg>
