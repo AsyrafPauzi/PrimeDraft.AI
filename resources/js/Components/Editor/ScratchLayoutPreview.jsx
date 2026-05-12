@@ -198,11 +198,14 @@ export function ScratchLayoutPreview({ scratchLayout, merchandiseFallback = '', 
                                                 ) : null}
                                                 {layer.type === 'text' ? (
                                                     <div
-                                                        className="flex h-full w-full items-center justify-center overflow-hidden text-center font-semibold leading-tight"
+                                                        className="flex h-full w-full items-center justify-center overflow-hidden text-center leading-tight"
                                                         style={{
                                                             fontFamily: layer.props?.fontFamily || 'system-ui, sans-serif',
                                                             color: layer.props?.color || '#111827',
                                                             fontSize: `${layer.props?.fontSizePx ?? 16}px`,
+                                                            fontWeight: layer.props?.fontWeight || '600',
+                                                            fontStyle: layer.props?.fontStyle || 'normal',
+                                                            textDecoration: layer.props?.textDecoration || 'none',
                                                         }}
                                                     >
                                                         {layer.props?.text || 'Text'}

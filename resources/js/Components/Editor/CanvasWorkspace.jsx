@@ -45,6 +45,9 @@ export function CanvasWorkspace({
     onSelectLayer,
     onUpdateLayerTransform,
     onAddImageFromSrc,
+    textEditingLayerId = null,
+    onTextEditingLayerChange,
+    onUpdateTextLayer,
     interactionMode = 'default',
     panOffset = { x: 0, y: 0 },
     onPanOffsetChange,
@@ -59,7 +62,7 @@ export function CanvasWorkspace({
     const [dragging, setDragging] = useState(null);
     /** @type {{ id: string; mode: 'drag' | 'resize'; startFracX: number; startFracY: number; startTransform: object } | null} */
 
-    const sorted = sortLayers(layers);
+    const sorted = sortLayers(layers).filter((layer) => !layer?.hidden);
     const editable = viewMode === 'edit' && interactionMode === 'default' && !adjustGarmentBackground;
 
     const hasGarmentBg = Boolean(productGarmentBackgroundSrc?.trim?.());
@@ -125,6 +128,8 @@ export function CanvasWorkspace({
 
     function startDragLayer(event, layer) {
         if (!editable) return;
+        if (layer?.locked) return;
+        if (layer?.type === 'text' && textEditingLayerId === layer.id) return;
         event.stopPropagation();
         onSelectLayer?.(layer.id);
         const t = layer.transform || { x: 0.35, y: 0.35, w: 0.3, h: 0.22, rotation: 0 };
@@ -140,6 +145,7 @@ export function CanvasWorkspace({
 
     function startResize(event, layer) {
         if (!editable) return;
+        if (layer?.locked) return;
         event.stopPropagation();
         const t = layer.transform || { x: 0.35, y: 0.35, w: 0.3, h: 0.22, rotation: 0 };
         setDragging({
@@ -394,16 +400,60 @@ export function CanvasWorkspace({
                                                     />
                                                 ) : null}
                                                 {layer.type === 'text' ? (
-                                                    <div
-                                                        className="flex h-full w-full items-center justify-center overflow-hidden text-center font-semibold leading-tight"
-                                                        style={{
-                                                            fontFamily: layer.props?.fontFamily || 'system-ui, sans-serif',
-                                                            color: layer.props?.color || '#111827',
-                                                            fontSize: `${layer.props?.fontSizePx ?? 16}px`,
-                                                        }}
-                                                    >
-                                                        {layer.props?.text || 'Text'}
-                                                    </div>
+                                                    textEditingLayerId === layer.id ? (
+                                                        <div
+                                                            key="inline-text-edit"
+                                                            contentEditable
+                                                            suppressContentEditableWarning
+                                                            role="textbox"
+                                                            aria-multiline="true"
+                                                            autoFocus
+                                                            className="flex h-full w-full cursor-text items-center justify-center overflow-auto text-center leading-tight outline-none ring-2 ring-indigo-500/90 dark:ring-cyan-400/90"
+                                                            style={{
+                                                                fontFamily: layer.props?.fontFamily || 'system-ui, sans-serif',
+                                                                color: layer.props?.color || '#111827',
+                                                                fontSize: `${layer.props?.fontSizePx ?? 16}px`,
+                                                                fontWeight: layer.props?.fontWeight || '600',
+                                                                fontStyle: layer.props?.fontStyle || 'normal',
+                                                                textDecoration: layer.props?.textDecoration || 'none',
+                                                            }}
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Escape') {
+                                                                    e.preventDefault();
+                                                                    e.currentTarget.blur();
+                                                                }
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                const raw = e.currentTarget.innerText ?? '';
+                                                                const next = raw.replace(/\u00a0/g, ' ').trim() || ' ';
+                                                                onUpdateTextLayer?.(layer.id, { text: next });
+                                                                onTextEditingLayerChange?.(null);
+                                                            }}
+                                                        >
+                                                            {layer.props?.text || 'Text'}
+                                                        </div>
+                                                    ) : (
+                                                        <div
+                                                            className="flex h-full w-full cursor-pointer items-center justify-center overflow-hidden text-center leading-tight"
+                                                            style={{
+                                                                fontFamily: layer.props?.fontFamily || 'system-ui, sans-serif',
+                                                                color: layer.props?.color || '#111827',
+                                                                fontSize: `${layer.props?.fontSizePx ?? 16}px`,
+                                                                fontWeight: layer.props?.fontWeight || '600',
+                                                                fontStyle: layer.props?.fontStyle || 'normal',
+                                                                textDecoration: layer.props?.textDecoration || 'none',
+                                                            }}
+                                                            onDoubleClick={(e) => {
+                                                                e.stopPropagation();
+                                                                e.preventDefault();
+                                                                onSelectLayer?.(layer.id);
+                                                                onTextEditingLayerChange?.(layer.id);
+                                                            }}
+                                                        >
+                                                            {layer.props?.text || 'Text'}
+                                                        </div>
+                                                    )
                                                 ) : null}
                                                 {editable ? (
                                                     <button

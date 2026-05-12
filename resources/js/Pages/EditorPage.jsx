@@ -12,32 +12,31 @@ import {
     Wand2,
     X,
     PackagePlus,
+    Pencil,
+    Scan,
 } from 'lucide-react';
 import { AssetLibraryPanel, ToolContentPanel } from '../Components/Editor/AssetLibraryPanel';
-import { CanvasWorkspace } from '../Components/Editor/CanvasWorkspace';
+import { FabricMerchEditor } from '../Components/Editor/FabricMerchEditor';
 import { SaveProductWizard } from '../Components/Editor/SaveProductWizard';
 import { AiControlPanel } from '../Components/AIPanel/AiControlPanel';
 import { Button } from '../components/ui/button';
-import { createGeneration, downloadHighRes, saveScratchLayout } from '../lib/api';
+import { runProjectPreflight, saveScratchLayout } from '../lib/api';
 import templates from '../data/editor/templates.json';
 import fonts from '../data/editor/fonts.json';
 import stockImages from '../data/editor/stock-images.json';
 import { getScratchMerchandise } from '../lib/merchandisePreview';
 import { cn } from '../lib/utils';
 import {
-    addLayerToSide,
     cloneLayout,
     defaultLayerTransform,
     getSidesForMerchandise,
     mergeScratchForSave,
-    moveLayerZIndex,
     nextLayerId,
     normalizeScratchLayout,
     defaultGarmentBackgroundPosition,
-    removeLayerFromSide,
-    updateLayerOnSide,
     updateLayerTransformOnSide,
 } from '../lib/editorLayout';
+import { loadUserImageLibrary, loadUserTemplates, saveUserImageLibrary, saveUserTemplates } from '../lib/userEditorStorage';
 
 const UNDO_DEPTH = 30;
 
@@ -71,17 +70,22 @@ function templateToLayers(template) {
     return layers;
 }
 
-export function EditorPage({ token, selectedProjectId, selectedProject, onNotify, role = 'normal', onProjectScratchUpdate }) {
+export function EditorPage({ token, selectedProjectId, selectedProject, onNotify, role = 'normal', onProjectFieldsUpdate }) {
     const navigate = useNavigate();
     const location = useLocation();
     /** App shell hides on `/editor` – use full height of standalone container */
     const editorReplacesShell = location.pathname.replace(/\/$/, '') === '/editor';
-    const [viewMode, setViewMode] = useState('edit');
     const [activeTool, setActiveTool] = useState(null);
+    /** @type {[Array<{ id: string, name: string, src: string, addedAt: string }>, function]} */
+    const [userLibrary, setUserLibrary] = useState(() => loadUserImageLibrary());
+    /** @type {[Array<{ id: string, name: string, userSaved?: boolean, layers?: unknown[] }>, function]} */
+    const [userTemplates, setUserTemplates] = useState(() => loadUserTemplates());
+    const fabricApiRef = useRef(null);
+    const [layoutReplayToken, setLayoutReplayToken] = useState(0);
     const [aiPanelOpen, setAiPanelOpen] = useState(false);
     const [activeSide, setActiveSide] = useState(() => getSidesForMerchandise('')[0] || 'Front');
     const [zoom, setZoom] = useState(100);
-    const [prompt, setPrompt] = useState('');
+    const [highFidelityPrompt, setHighFidelityPrompt] = useState('');
     const [loading, setLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
@@ -89,17 +93,17 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
     const [selectedFont, setSelectedFont] = useState(null);
     const [selectedImage, setSelectedImage] = useState(null);
 
-    const merchandise = getScratchMerchandise(selectedProject?.scratch_layout);
+    const scratchMerchandise = getScratchMerchandise(selectedProject?.scratch_layout);
     const projectName = selectedProject?.name || (selectedProjectId ? `Project #${selectedProjectId}` : null);
 
-    const [layout, setLayout] = useState(() => normalizeScratchLayout(selectedProject?.scratch_layout, merchandise));
+    const [layout, setLayout] = useState(() => normalizeScratchLayout(selectedProject?.scratch_layout, scratchMerchandise));
     const layoutRef = useRef(layout);
     layoutRef.current = layout;
 
-    const productSides = useMemo(
-        () => getSidesForMerchandise(merchandise || layout.merchandise || ''),
-        [merchandise, layout.merchandise]
-    );
+    /** Prefer API scratch `merchandise`, else normalized layout (e.g. after template pick before next save). */
+    const merchandise = scratchMerchandise || String(layout.merchandise || '').trim();
+
+    const productSides = useMemo(() => getSidesForMerchandise(merchandise || ''), [merchandise]);
 
     const [past, setPast] = useState([]);
     const [future, setFuture] = useState([]);
@@ -108,7 +112,17 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
     const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
     const [saveWizardOpen, setSaveWizardOpen] = useState(false);
     const [adjustGarmentBackground, setAdjustGarmentBackground] = useState(false);
+    const [preflightProfile, setPreflightProfile] = useState(() => selectedProject?.print_profile || 'dtf');
+    const [preflightLoading, setPreflightLoading] = useState(false);
+    /** Flat 2D garment template vs mockup-style preview (read-only on canvas). */
+    const [editorGarmentView, setEditorGarmentView] = useState(() => /** @type {'edit' | 'preview'} */ ('edit'));
+    const [fabricPrintPipeline, setFabricPrintPipeline] = useState({
+        busy: false,
+        highFiUrl: null,
+        validationOk: null,
+    });
 
+    const dirtyRef = useRef(false);
     const lastHydratedProjectKey = useRef(null);
 
     useEffect(() => {
@@ -126,13 +140,41 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         lastHydratedProjectKey.current = key;
         const merch = getScratchMerchandise(selectedProject.scratch_layout);
         setLayout(normalizeScratchLayout(selectedProject.scratch_layout, merch));
+        setPreflightProfile(selectedProject.print_profile || 'dtf');
+        dirtyRef.current = false;
         setPast([]);
         setFuture([]);
         setSelectedLayerId(null);
         setPanOffset({ x: 0, y: 0 });
         setInteractionMode('default');
         setActiveSide(getSidesForMerchandise(merch || '')[0] || 'Front');
+        setEditorGarmentView('edit');
+        setLayoutReplayToken((n) => n + 1);
     }, [selectedProjectId, selectedProject]);
+
+    useEffect(() => {
+        if (!token || !selectedProjectId) {
+            return undefined;
+        }
+        const timer = setTimeout(() => {
+            if (!dirtyRef.current) {
+                return;
+            }
+            void (async () => {
+                try {
+                    const payload = mergeScratchForSave(selectedProject?.scratch_layout, layoutRef.current);
+                    const res = await saveScratchLayout(token, selectedProjectId, payload);
+                    dirtyRef.current = false;
+                    if (res?.project?.scratch_layout) {
+                        onProjectFieldsUpdate?.(selectedProjectId, { scratch_layout: res.project.scratch_layout });
+                    }
+                } catch {
+                    /* keep dirtyRef true for a later attempt */
+                }
+            })();
+        }, 12000);
+        return () => clearTimeout(timer);
+    }, [layout, token, selectedProjectId, selectedProject?.scratch_layout, onProjectFieldsUpdate]);
 
     useEffect(() => {
         if (!productSides.includes(activeSide)) {
@@ -146,14 +188,31 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         }
     }, [activeTool]);
 
-    const commitLayout = useCallback((nextOrFn) => {
+    useEffect(() => {
+        if (adjustGarmentBackground) {
+            setEditorGarmentView('edit');
+        }
+    }, [adjustGarmentBackground]);
+
+    useEffect(() => {
+        if (saveWizardOpen) {
+            setEditorGarmentView('edit');
+        }
+    }, [saveWizardOpen]);
+
+    const commitLayout = useCallback((nextOrFn, opts = {}) => {
+        const { skipHistory = false } = opts;
         const current = layoutRef.current;
         const next = typeof nextOrFn === 'function' ? nextOrFn(current) : nextOrFn;
         if (next === current) {
             return;
         }
-        setPast((p) => [...p.slice(-(UNDO_DEPTH - 1)), cloneLayout(current)]);
-        setFuture([]);
+        dirtyRef.current = true;
+        if (!skipHistory) {
+            setPast((p) => [...p.slice(-(UNDO_DEPTH - 1)), cloneLayout(current)]);
+            setFuture([]);
+        }
+        layoutRef.current = next;
         setLayout(next);
     }, []);
 
@@ -162,7 +221,10 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         const prev = past[past.length - 1];
         setPast((p) => p.slice(0, -1));
         setFuture((f) => [cloneLayout(layoutRef.current), ...f]);
+        dirtyRef.current = true;
+        layoutRef.current = prev;
         setLayout(prev);
+        setLayoutReplayToken((n) => n + 1);
         setStatusMessage('Undo.');
     }, [past]);
 
@@ -171,31 +233,45 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         const [next, ...rest] = future;
         setFuture(rest);
         setPast((p) => [...p, cloneLayout(layoutRef.current)]);
+        dirtyRef.current = true;
+        layoutRef.current = next;
         setLayout(next);
+        setLayoutReplayToken((n) => n + 1);
         setStatusMessage('Redo.');
     }, [future]);
 
     const layersForSide = useMemo(() => layout?.sides?.[activeSide]?.layers ?? [], [layout, activeSide]);
 
-    const addImageFromSrc = useCallback(
-        (src) => {
-            if (!src) return;
-            commitLayout((cur) => {
-                const list = cur.sides?.[activeSide]?.layers ?? [];
-                const z = (list.length ? Math.max(...list.map((l) => l.zIndex || 0)) : 0) + 1;
-                const layer = {
-                    id: nextLayerId(),
-                    type: 'image',
-                    zIndex: z,
-                    transform: defaultLayerTransform(0.28, 0.32, 0.36, 0.26),
-                    props: { src },
-                };
-                return addLayerToSide(cur, activeSide, layer);
-            });
-            setStatusMessage('Image added to canvas.');
+    const handleFabricPersist = useCallback(
+        (fabricJson, legacyLayers) => {
+            commitLayout(
+                (cur) => {
+                    const next = cloneLayout(cur);
+                    const sideData = next.sides?.[activeSide] || { layers: [] };
+                    const layers = Array.isArray(legacyLayers) ? legacyLayers : Array.isArray(sideData.layers) ? sideData.layers : [];
+                    next.sides[activeSide] = { ...sideData, layers, fabric: fabricJson };
+                    return next;
+                },
+                { skipHistory: true }
+            );
         },
         [activeSide, commitLayout]
     );
+
+    const handleSelectLayerFromPanel = useCallback((id) => {
+        setSelectedLayerId(id);
+        if (id) {
+            fabricApiRef.current?.selectLayerById?.(id);
+        } else {
+            fabricApiRef.current?.clearFabricSelection?.();
+        }
+    }, []);
+
+    const addImageFromSrc = useCallback((src) => {
+        if (!src) return;
+        fabricApiRef.current?.addImageFromUrl?.(src);
+        setStatusMessage('Image added to canvas.');
+    }, []);
 
     const handleUploadImageFile = useCallback(
         (file) => {
@@ -203,7 +279,21 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
             const reader = new FileReader();
             reader.onload = () => {
                 if (typeof reader.result === 'string') {
-                    addImageFromSrc(reader.result);
+                    const src = reader.result;
+                    addImageFromSrc(src);
+                    const entry = {
+                        id: `lib_${Date.now()}`,
+                        name: file.name || 'Upload',
+                        src,
+                        addedAt: new Date().toISOString(),
+                    };
+                    setUserLibrary((prev) => {
+                        const deduped = prev.filter((x) => x.src !== src);
+                        const next = [entry, ...deduped].slice(0, 200);
+                        saveUserImageLibrary(next);
+                        return next;
+                    });
+                    setStatusMessage('Image added and saved to My Library.');
                 }
             };
             reader.readAsDataURL(file);
@@ -211,24 +301,21 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         [addImageFromSrc]
     );
 
-    const handleAddTextBlock = useCallback(() => {
-        const fontFamily = selectedFont?.family || 'Inter';
-        const id = nextLayerId();
-        commitLayout((cur) => {
-            const list = cur.sides?.[activeSide]?.layers ?? [];
-            const z = (list.length ? Math.max(...list.map((l) => l.zIndex || 0)) : 0) + 1;
-            const layer = {
-                id,
-                type: 'text',
-                zIndex: z,
-                transform: defaultLayerTransform(0.2, 0.28, 0.6, 0.14),
-                props: { text: 'Your text', fontFamily, fontSizePx: 22, color: '#111827' },
-            };
-            return addLayerToSide(cur, activeSide, layer);
+    const handleRemoveUserLibraryImage = useCallback((id) => {
+        if (!id) return;
+        setUserLibrary((prev) => {
+            const next = prev.filter((x) => x.id !== id);
+            saveUserImageLibrary(next);
+            return next;
         });
-        setSelectedLayerId(id);
+        setStatusMessage('Removed from My Library.');
+        onNotify?.('Image removed from My Library.', 'success');
+    }, [onNotify]);
+
+    const handleAddTextBlock = useCallback(() => {
+        fabricApiRef.current?.addText?.(selectedFont?.family);
         setStatusMessage('Text block added.');
-    }, [activeSide, selectedFont, commitLayout]);
+    }, [selectedFont]);
 
     const handleProductColorChange = useCallback(
         (color) => {
@@ -292,19 +379,49 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         [commitLayout]
     );
 
-    const handleSelectTemplate = useCallback(
-        (template) => {
-            setSelectedTemplate(template);
-            commitLayout((cur) => {
-                let next = cur;
-                for (const L of templateToLayers(template)) {
-                    next = addLayerToSide(next, activeSide, L);
-                }
-                return next;
-            });
+    const handleSelectTemplate = useCallback(async (template) => {
+        setSelectedTemplate(template);
+        if (template?.userSaved && template.fabric && typeof template.fabric === 'object') {
+            await fabricApiRef.current?.loadFromJSON?.(template.fabric);
             setStatusMessage(`Template applied: ${template.name}`);
+            return;
+        }
+        if (template?.userSaved && Array.isArray(template.layers)) {
+            await fabricApiRef.current?.importLegacyLayers?.(template.layers);
+            setStatusMessage(`Template applied: ${template.name}`);
+            return;
+        }
+        await fabricApiRef.current?.importLegacyLayers?.(templateToLayers(template));
+        setStatusMessage(`Template applied: ${template.name}`);
+    }, []);
+
+    const handleSaveUserTemplate = useCallback(
+        (name) => {
+            const trimmed = String(name || '').trim();
+            if (!trimmed) {
+                setStatusMessage('Enter a template name to save.');
+                return;
+            }
+            fabricApiRef.current?.flush?.();
+            const fabric = fabricApiRef.current?.getFabricJson?.();
+            const objects = fabric?.objects;
+            if (!Array.isArray(objects) || objects.length === 0) {
+                setStatusMessage('Add at least one object on the canvas before saving.');
+                return;
+            }
+            const entry = {
+                id: `user_tpl_${Date.now()}`,
+                name: trimmed,
+                userSaved: true,
+                fabric: structuredClone(fabric),
+            };
+            const next = [...userTemplates, entry];
+            setUserTemplates(next);
+            saveUserTemplates(next);
+            setStatusMessage(`Saved template “${trimmed}” for reuse.`);
+            onNotify?.('Template saved in this browser.', 'success');
         },
-        [activeSide, commitLayout]
+        [userTemplates, onNotify]
     );
 
     const handleSelectFont = useCallback(
@@ -314,20 +431,17 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                 setStatusMessage(`Font "${font.name}" will be used for the next text block.`);
                 return;
             }
-            commitLayout((cur) => {
-                const sideLayers = cur.sides?.[activeSide]?.layers || [];
-                const target = sideLayers.find((l) => l.id === selectedLayerId);
-                if (target?.type === 'text') {
-                    return updateLayerOnSide(cur, activeSide, selectedLayerId, {
-                        props: { ...target.props, fontFamily: font.family || 'sans-serif' },
-                    });
-                }
-                return cur;
-            });
-            const target = (layout.sides?.[activeSide]?.layers || []).find((l) => l.id === selectedLayerId);
-            setStatusMessage(target?.type === 'text' ? `Font applied: ${font.name}` : `Font "${font.name}" will be used for the next text block.`);
+            const target = (layoutRef.current.sides?.[activeSide]?.layers || []).find((l) => l.id === selectedLayerId);
+            if (target?.type === 'text') {
+                fabricApiRef.current?.updateTextLayer?.(selectedLayerId, {
+                    fontFamily: font.family || 'sans-serif',
+                });
+                setStatusMessage(`Font applied: ${font.name}`);
+            } else {
+                setStatusMessage(`Font "${font.name}" will be used for the next text block.`);
+            }
         },
-        [layout, activeSide, selectedLayerId, commitLayout]
+        [activeSide, selectedLayerId]
     );
 
     const handleSelectImage = useCallback(
@@ -340,53 +454,87 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         [addImageFromSrc]
     );
 
-    const handleLayerReorder = useCallback(
-        (layerId, direction) => {
-            commitLayout((cur) => moveLayerZIndex(cur, activeSide, layerId, direction));
-        },
-        [activeSide, commitLayout]
-    );
+    const handleLayerReorderDrag = useCallback((orderedIdsBottomToTop) => {
+        if (!Array.isArray(orderedIdsBottomToTop) || orderedIdsBottomToTop.length === 0) return;
+        fabricApiRef.current?.reorderLayersByIds?.(orderedIdsBottomToTop);
+        setStatusMessage('Layer order updated.');
+    }, []);
 
-    const handleLayerDelete = useCallback(
-        (layerId) => {
-            commitLayout((cur) => removeLayerFromSide(cur, activeSide, layerId));
+    const handleLayerDelete = useCallback((layerId) => {
+        if (fabricApiRef.current?.removeLayerById?.(layerId)) {
             setSelectedLayerId((id) => (id === layerId ? null : id));
             setStatusMessage('Layer removed.');
+        }
+    }, []);
+
+    const handleLayerToggleLock = useCallback(
+        (layerId) => {
+            const target = layersForSide.find((l) => l.id === layerId);
+            if (!target) return;
+            fabricApiRef.current?.setLayerLocked?.(layerId, !target.locked);
+            setStatusMessage('Layer lock updated.');
         },
-        [activeSide, commitLayout]
+        [layersForSide]
+    );
+
+    const handleLayerToggleHide = useCallback(
+        (layerId) => {
+            const target = layersForSide.find((l) => l.id === layerId);
+            if (!target) return;
+            fabricApiRef.current?.setLayerHidden?.(layerId, !target.hidden);
+            setStatusMessage('Layer visibility updated.');
+        },
+        [layersForSide]
     );
 
     useEffect(() => {
         function onKeyDown(event) {
-            if (!selectedLayerId) return;
-            if (event.key !== 'Backspace' && event.key !== 'Delete') return;
             const target = event.target;
             const tag = target?.tagName?.toLowerCase();
             if (tag === 'input' || tag === 'textarea' || target?.isContentEditable) return;
+
+            const layer = layersForSide.find((l) => l.id === selectedLayerId);
+            const nudgeKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+            if (selectedLayerId && nudgeKeys.includes(event.key)) {
+                if (!layer || layer.locked || layer.hidden) return;
+                const px = event.shiftKey ? 6 : 2;
+                let dx = 0;
+                let dy = 0;
+                if (event.key === 'ArrowLeft') dx = -px;
+                if (event.key === 'ArrowRight') dx = px;
+                if (event.key === 'ArrowUp') dy = -px;
+                if (event.key === 'ArrowDown') dy = px;
+                if (fabricApiRef.current?.nudgeActive?.(dx, dy)) {
+                    event.preventDefault();
+                }
+                return;
+            }
+
+            if (event.key === 'Backspace' || event.key === 'Delete') {
+                if (fabricApiRef.current?.deleteActiveSelection?.()) {
+                    event.preventDefault();
+                    return;
+                }
+            }
+
+            if (!selectedLayerId) return;
+            if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+            if (layer?.locked) return;
             event.preventDefault();
             handleLayerDelete(selectedLayerId);
         }
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
-    }, [selectedLayerId, handleLayerDelete]);
+    }, [selectedLayerId, handleLayerDelete, layersForSide]);
 
-    const handleUpdateTextLayer = useCallback(
-        (layerId, patch) => {
-            commitLayout((cur) => {
-                const sideLayers = cur.sides?.[activeSide]?.layers || [];
-                const target = sideLayers.find((l) => l.id === layerId);
-                if (!target || target.type !== 'text') return cur;
-                return updateLayerOnSide(cur, activeSide, layerId, {
-                    props: { ...target.props, ...patch },
-                });
-            });
-        },
-        [activeSide, commitLayout]
-    );
+    const handleUpdateTextLayer = useCallback((layerId, patch) => {
+        fabricApiRef.current?.updateTextLayer?.(layerId, patch);
+    }, []);
 
     const handleUpdateLayerTransform = useCallback(
         (layerId, transformPatch) => {
+            dirtyRef.current = true;
             setLayout((current) => updateLayerTransformOnSide(current, activeSide, layerId, transformPatch));
         },
         [activeSide]
@@ -394,9 +542,9 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
 
     const handleLayoutSavedFromWizard = useCallback(
         (scratch) => {
-            onProjectScratchUpdate?.(selectedProjectId, scratch);
+            onProjectFieldsUpdate?.(selectedProjectId, { scratch_layout: scratch });
         },
-        [onProjectScratchUpdate, selectedProjectId]
+        [onProjectFieldsUpdate, selectedProjectId]
     );
 
     async function handleSave() {
@@ -408,15 +556,20 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         setLoading(true);
         try {
             const payload = {
-                ...mergeScratchForSave(selectedProject?.scratch_layout, layout),
+                ...mergeScratchForSave(selectedProject?.scratch_layout, layoutRef.current),
                 template: selectedTemplate?.id ?? null,
                 font: selectedFont?.id ?? null,
                 image: selectedImage?.id ?? null,
             };
             const res = await saveScratchLayout(token, selectedProjectId, payload);
-            if (res?.project?.scratch_layout) {
-                onProjectScratchUpdate?.(selectedProjectId, res.project.scratch_layout);
+            if (res?.project) {
+                onProjectFieldsUpdate?.(selectedProjectId, {
+                    scratch_layout: res.project.scratch_layout,
+                    print_profile: res.project.print_profile,
+                    preflight_report: res.project.preflight_report,
+                });
             }
+            dirtyRef.current = false;
             setStatusMessage('Design saved.');
             onNotify?.('Design saved successfully.', 'success');
         } catch (error) {
@@ -427,61 +580,49 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
         }
     }
 
-    async function handleGenerate(promptValue) {
-        if (!selectedProjectId) {
-            setErrorMessage('No project selected.');
-            return;
-        }
-        setErrorMessage('');
-        setLoading(true);
-        try {
-            await createGeneration(token, selectedProjectId, promptValue || 'Generate high fidelity print design');
-            setStatusMessage('AI generation queued. Check back shortly.');
-            onNotify?.('AI generation queued.', 'success');
-        } catch (error) {
-            setErrorMessage(error.message);
-            onNotify?.(error.message, 'error');
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    async function handleGenerateSimilar(panelPrompt) {
-        const base = panelPrompt?.trim() || prompt?.trim() || 'Generate print design';
-        await handleGenerate(`Create a variation of: ${base}`);
-    }
-
-    function handleEnhancePrompt(panelPrompt) {
-        const current = panelPrompt?.trim() || prompt?.trim();
-        if (!current) {
-            setErrorMessage('Enter a prompt first.');
-            return;
-        }
-        setPrompt(`${current}. Clean composition, high contrast, production-ready print details, premium finish.`);
-        setStatusMessage('Prompt enhanced.');
-    }
-
-    async function handleDownloadHighRes() {
-        if (!selectedProjectId) {
-            setErrorMessage('No project selected.');
-            return;
-        }
-        setErrorMessage('');
-        setLoading(true);
-        try {
-            const payload = await downloadHighRes(token, selectedProjectId, { dpi: 360, color_count: 6 });
-            setStatusMessage(`360 DPI file ready: ${payload.download_url}`);
-            onNotify?.('360 DPI print file ready.', 'success');
-            if (typeof window !== 'undefined' && payload.download_url) {
-                window.open(payload.download_url, '_blank', 'noopener,noreferrer');
+    const runPrintAnalysis = useCallback(
+        async (opts = {}) => {
+            const { openReadinessTab = false } = opts;
+            if (!selectedProjectId) {
+                setErrorMessage('No project selected.');
+                return;
             }
-        } catch (error) {
-            setErrorMessage(error.message);
-            onNotify?.(error.message, 'error');
-        } finally {
-            setLoading(false);
-        }
-    }
+            if (openReadinessTab) {
+                setActiveTool('preflight');
+            }
+            setErrorMessage('');
+            fabricApiRef.current?.flush?.();
+            setPreflightLoading(true);
+            try {
+                const merged = mergeScratchForSave(selectedProject?.scratch_layout, layoutRef.current);
+                const res = await runProjectPreflight(token, selectedProjectId, {
+                    print_profile: preflightProfile,
+                    layout: merged,
+                });
+                if (res?.preflight && res?.project) {
+                    onProjectFieldsUpdate?.(selectedProjectId, {
+                        preflight_report: res.preflight,
+                        print_profile: res.project.print_profile,
+                        scratch_layout: res.project.scratch_layout,
+                    });
+                    const st = res.preflight?.status;
+                    setFabricPrintPipeline((prev) => ({
+                        ...prev,
+                        validationOk: st === 'error' ? false : st === 'ok' || st === 'warning' ? true : null,
+                    }));
+                }
+                setStatusMessage('Print analysis complete.');
+                onNotify?.('Print readiness updated.', 'success');
+            } catch (error) {
+                setFabricPrintPipeline((prev) => ({ ...prev, validationOk: false }));
+                setErrorMessage(error.message);
+                onNotify?.(error.message, 'error');
+            } finally {
+                setPreflightLoading(false);
+            }
+        },
+        [selectedProjectId, selectedProject, token, preflightProfile, onProjectFieldsUpdate, onNotify]
+    );
 
     function togglePanMode() {
         setInteractionMode((m) => {
@@ -519,6 +660,39 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
 
                     <div className="mx-1 h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-700" />
 
+                    <div className="hidden shrink-0 items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-600 dark:bg-gray-800 sm:flex">
+                        <button
+                            type="button"
+                            title="Edit — flat garment template"
+                            disabled={!selectedProjectId}
+                            onClick={() => setEditorGarmentView('edit')}
+                            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                editorGarmentView === 'edit'
+                                    ? 'bg-white text-gray-900 shadow dark:bg-gray-700 dark:text-white'
+                                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                        </button>
+                        <button
+                            type="button"
+                            title="Preview — mockup view (read-only)"
+                            disabled={!selectedProjectId}
+                            onClick={() => setEditorGarmentView('preview')}
+                            className={`flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+                                editorGarmentView === 'preview'
+                                    ? 'bg-white text-gray-900 shadow dark:bg-gray-700 dark:text-white'
+                                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                        >
+                            <Scan className="h-3.5 w-3.5" />
+                            Preview
+                        </button>
+                    </div>
+
+                    <div className="mx-1 h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-700" />
+
                     <button
                         type="button"
                         onClick={undo}
@@ -540,31 +714,6 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                    <div className="flex overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('edit')}
-                            className={`px-4 py-1.5 text-sm font-medium transition-colors ${
-                                viewMode === 'edit'
-                                    ? 'bg-gray-800 text-white dark:bg-white dark:text-gray-900'
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
-                            }`}
-                        >
-                            Edit
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setViewMode('preview')}
-                            className={`border-l border-gray-200 px-4 py-1.5 text-sm font-medium transition-colors dark:border-gray-700 ${
-                                viewMode === 'preview'
-                                    ? 'bg-gray-800 text-white dark:bg-white dark:text-gray-900'
-                                    : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800'
-                            }`}
-                        >
-                            Preview
-                        </button>
-                    </div>
-
                     <button
                         type="button"
                         onClick={() => setAiPanelOpen((current) => !current)}
@@ -597,21 +746,26 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                 <ToolContentPanel
                     activeTool={activeTool}
                     templates={templates}
+                    userTemplates={userTemplates}
                     fonts={fonts}
                     stockImages={stockImages}
+                    userLibraryImages={userLibrary}
                     onSelectTemplate={handleSelectTemplate}
                     onSelectFont={handleSelectFont}
                     onSelectImage={handleSelectImage}
                     onUploadImageFile={handleUploadImageFile}
                     onAddTextBlock={handleAddTextBlock}
+                    onSaveUserTemplate={handleSaveUserTemplate}
                     productBaseColor={layout.productBaseColor}
                     onProductColorChange={handleProductColorChange}
                     activeSide={activeSide}
                     layers={layersForSide}
                     selectedLayerId={selectedLayerId}
-                    onSelectLayer={setSelectedLayerId}
-                    onLayerReorder={handleLayerReorder}
+                    onSelectLayer={handleSelectLayerFromPanel}
+                    onLayerReorderDrag={handleLayerReorderDrag}
                     onLayerDelete={handleLayerDelete}
+                    onLayerToggleLock={handleLayerToggleLock}
+                    onLayerToggleHide={handleLayerToggleHide}
                     onUpdateTextLayer={handleUpdateTextLayer}
                     productGarmentBackgroundSrc={layout.productGarmentBackgroundSrc}
                     productGarmentBackgroundPresetKey={layout.productGarmentBackgroundPresetKey}
@@ -620,29 +774,42 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                     onProductGarmentBackgroundPreset={handleProductGarmentBackgroundPreset}
                     onProductGarmentBackgroundFile={handleProductGarmentBackgroundFile}
                     onProductGarmentBackgroundClear={handleProductGarmentBackgroundClear}
+                    printProfile={preflightProfile}
+                    onPrintProfileChange={setPreflightProfile}
+                    onRunPreflight={() => void runPrintAnalysis({ openReadinessTab: false })}
+                    onRemoveUserLibraryImage={handleRemoveUserLibraryImage}
+                    preflightLoading={preflightLoading}
+                    preflightReport={selectedProject?.preflight_report}
                 />
 
                 <main className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#8f8f8f] dark:bg-[#18181b]">
-                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-                        <CanvasWorkspace
-                            merchandise={merchandise}
-                            side={activeSide}
-                            viewMode={viewMode}
-                            zoom={zoom}
-                            productBaseColor={layout.productBaseColor}
-                            productGarmentBackgroundSrc={layout.productGarmentBackgroundSrc}
-                            productGarmentBackgroundPosition={layout.productGarmentBackgroundPosition}
-                            onGarmentBackgroundPositionChange={handleGarmentBackgroundPositionChange}
-                            adjustGarmentBackground={adjustGarmentBackground}
-                            layers={layersForSide}
-                            selectedLayerId={selectedLayerId}
-                            onSelectLayer={setSelectedLayerId}
-                            onUpdateLayerTransform={handleUpdateLayerTransform}
-                            onAddImageFromSrc={addImageFromSrc}
-                            interactionMode={interactionMode}
-                            panOffset={panOffset}
-                            onPanOffsetChange={setPanOffset}
-                        />
+                    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                            <FabricMerchEditor
+                                key={`fabric-${activeSide}-${layoutReplayToken}`}
+                                ref={fabricApiRef}
+                                activeSide={activeSide}
+                                zoom={zoom}
+                                merchandise={merchandise}
+                                productBaseColor={layout.productBaseColor}
+                                productGarmentBackgroundSrc={layout.productGarmentBackgroundSrc}
+                                productGarmentBackgroundPosition={layout.productGarmentBackgroundPosition}
+                                onGarmentBackgroundPositionChange={handleGarmentBackgroundPositionChange}
+                                adjustGarmentBackground={adjustGarmentBackground}
+                                interactionMode={interactionMode}
+                                panOffset={panOffset}
+                                onPanOffsetChange={setPanOffset}
+                                initialFabric={layout.sides?.[activeSide]?.fabric ?? null}
+                                onPersist={handleFabricPersist}
+                                onSelectionChange={setSelectedLayerId}
+                                token={token}
+                                projectId={selectedProjectId}
+                                onNotify={onNotify}
+                                onPrintPipelineStateChange={setFabricPrintPipeline}
+                                disabled={!selectedProjectId}
+                                viewMode={editorGarmentView === 'edit' ? 'edit' : 'preview'}
+                            />
+                        </div>
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-gray-200/80 bg-white/90 px-4 py-2 backdrop-blur-sm dark:border-gray-700/80 dark:bg-gray-900/90">
@@ -650,7 +817,10 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                             <button
                                 key={side}
                                 type="button"
-                                onClick={() => setActiveSide(side)}
+                                onClick={() => {
+                                    fabricApiRef.current?.flush?.();
+                                    setActiveSide(side);
+                                }}
                                 className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                                     activeSide === side
                                         ? 'bg-gray-800 text-white shadow dark:bg-white dark:text-gray-900'
@@ -728,13 +898,18 @@ export function EditorPage({ token, selectedProjectId, selectedProject, onNotify
                             <X className="h-4 w-4" />
                         </button>
                         <AiControlPanel
-                            prompt={prompt}
-                            onPromptChange={setPrompt}
-                            onGenerate={handleGenerate}
-                            onGenerateSimilar={handleGenerateSimilar}
-                            onEnhancePrompt={handleEnhancePrompt}
-                            onDownloadHighRes={handleDownloadHighRes}
+                            highFidelityPrompt={highFidelityPrompt}
+                            onHighFidelityPromptChange={setHighFidelityPrompt}
                             disabled={loading}
+                            printPipelineBusy={fabricPrintPipeline.busy}
+                            printPipelineHighFiUrl={fabricPrintPipeline.highFiUrl}
+                            printPipelineValidationOk={fabricPrintPipeline.validationOk}
+                            fabricActionsDisabled={!selectedProjectId}
+                            onExportCanvasJson={() => fabricApiRef.current?.exportCanvasJson?.()}
+                            onExportPngPreview={() => fabricApiRef.current?.exportPngPreview?.()}
+                            onRunHighFidelity={() => void fabricApiRef.current?.runHighFidelity?.(highFidelityPrompt.trim())}
+                            onValidatePrintRules={() => void runPrintAnalysis({ openReadinessTab: true })}
+                            onExportFinalPng={() => fabricApiRef.current?.exportFinalPng?.()}
                         />
                     </div>
                 ) : null}

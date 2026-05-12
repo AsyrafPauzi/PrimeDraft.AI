@@ -82,7 +82,7 @@ export function createEmptyScratchLayout(merchandiseFallback = '') {
         productGarmentBackgroundSrc: null,
         productGarmentBackgroundPresetKey: null,
         productGarmentBackgroundPosition: defaultGarmentBackgroundPosition(),
-        sides: Object.fromEntries(sidesList.map((side) => [side, { layers: [] }])),
+        sides: Object.fromEntries(sidesList.map((side) => [side, { layers: [], fabric: null }])),
     };
 }
 
@@ -108,13 +108,16 @@ export function normalizeScratchLayout(raw, merchandiseFallback = '') {
                   .filter((layer) => layer && typeof layer === 'object' && typeof layer.type === 'string')
                   .map((layer) => ({
                       ...layer,
+                      locked: Boolean(layer.locked),
+                      hidden: Boolean(layer.hidden),
                       transform:
                           layer.transform && typeof layer.transform === 'object'
                               ? { ...defaultLayerTransform(), ...layer.transform }
                               : defaultLayerTransform(),
                   }))
             : [];
-        sides[side] = { layers };
+        const fabric = rawSide?.fabric && typeof rawSide.fabric === 'object' ? rawSide.fabric : null;
+        sides[side] = fabric ? { layers, fabric } : { layers };
     }
 
     const merch = pick(raw) || base.merchandise;
@@ -177,44 +180,78 @@ function nextZ(layers) {
  * @param {string} side
  * @param {object} layer
  */
+function sideWithLayersPreservingFabric(prevSide, layers) {
+    if (!prevSide || typeof prevSide !== 'object') {
+        return { layers };
+    }
+    const fabric = prevSide.fabric && typeof prevSide.fabric === 'object' ? prevSide.fabric : null;
+    return fabric ? { layers, fabric } : { layers };
+}
+
 export function addLayerToSide(layout, side, layer) {
     const next = cloneLayout(layout);
     const list = next.sides?.[side]?.layers ? [...next.sides[side].layers] : [];
     const id = layer.id || nextLayerId();
     const zIndex = typeof layer.zIndex === 'number' ? layer.zIndex : nextZ(list);
     list.push({ ...layer, id, zIndex });
-    next.sides[side] = { layers: list };
+    next.sides[side] = sideWithLayersPreservingFabric(next.sides?.[side], list);
     return next;
 }
 
 export function removeLayerFromSide(layout, side, layerId) {
     const next = cloneLayout(layout);
     if (!next.sides?.[side]) return next;
-    next.sides[side] = {
-        layers: next.sides[side].layers.filter((l) => l && l.id !== layerId),
-    };
+    const layers = next.sides[side].layers.filter((l) => l && l.id !== layerId);
+    next.sides[side] = sideWithLayersPreservingFabric(next.sides[side], layers);
     return next;
 }
 
 export function updateLayerOnSide(layout, side, layerId, patch) {
     const next = cloneLayout(layout);
     if (!next.sides?.[side]) return next;
-    next.sides[side] = {
-        layers: next.sides[side].layers.map((l) => (l && l.id === layerId ? { ...l, ...patch } : l)),
-    };
+    const layers = next.sides[side].layers.map((l) => (l && l.id === layerId ? { ...l, ...patch } : l));
+    next.sides[side] = sideWithLayersPreservingFabric(next.sides[side], layers);
     return next;
 }
 
 export function updateLayerTransformOnSide(layout, side, layerId, transform) {
     const next = cloneLayout(layout);
     if (!next.sides?.[side]) return next;
-    next.sides[side] = {
-        layers: next.sides[side].layers.map((l) => {
-            if (!l || l.id !== layerId) return l;
-            const prev = l.transform && typeof l.transform === 'object' ? l.transform : defaultLayerTransform();
-            return { ...l, transform: { ...prev, ...transform } };
-        }),
-    };
+    const layers = next.sides[side].layers.map((l) => {
+        if (!l || l.id !== layerId) return l;
+        const prev = l.transform && typeof l.transform === 'object' ? l.transform : defaultLayerTransform();
+        return { ...l, transform: { ...prev, ...transform } };
+    });
+    next.sides[side] = sideWithLayersPreservingFabric(next.sides[side], layers);
+    return next;
+}
+
+/**
+ * Re-stack layers for one side: `orderedIdsBottomToTop[0]` is bottom (painted first), last is top.
+ * @param {object} layout
+ * @param {string} side
+ * @param {string[]} orderedIdsBottomToTop
+ */
+export function reorderLayersVisualOrder(layout, side, orderedIdsBottomToTop) {
+    const next = cloneLayout(layout);
+    const list = [...(next.sides?.[side]?.layers || [])];
+    const map = new Map(list.map((l) => [l.id, { ...l }]));
+    const seen = new Set();
+    const rebuilt = [];
+    for (const id of orderedIdsBottomToTop) {
+        const l = map.get(id);
+        if (l) {
+            rebuilt.push(l);
+            seen.add(id);
+        }
+    }
+    for (const l of list) {
+        if (!seen.has(l.id)) rebuilt.push({ ...l });
+    }
+    rebuilt.forEach((l, i) => {
+        l.zIndex = i + 1;
+    });
+    next.sides[side] = sideWithLayersPreservingFabric(next.sides[side], rebuilt);
     return next;
 }
 

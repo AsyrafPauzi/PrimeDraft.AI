@@ -87,8 +87,8 @@ function ProtectedApp({
                         selectedProjectId={selectedProjectId}
                         selectedProject={selectedProject}
                         onNotify={notify}
-                        onProjectScratchUpdate={(projectId, scratch) => {
-                            setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, scratch_layout: scratch } : p)));
+                        onProjectFieldsUpdate={(projectId, fields) => {
+                            setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...fields } : p)));
                         }}
                     />
                 }
@@ -155,8 +155,8 @@ function ProtectedApp({
                         selectedProjectId={selectedProjectId}
                         selectedProject={selectedProject}
                         onNotify={notify}
-                        onProjectScratchUpdate={(projectId, scratch) => {
-                            setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, scratch_layout: scratch } : p)));
+                        onProjectFieldsUpdate={(projectId, fields) => {
+                            setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...fields } : p)));
                         }}
                     />
                 }

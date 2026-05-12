@@ -1,6 +1,14 @@
 [
   { "id": "inter", "name": "Inter", "family": "Inter, system-ui, sans-serif", "category": "sans" },
+  { "id": "montserrat", "name": "Montserrat", "family": "Montserrat, Inter, system-ui, sans-serif", "category": "sans" },
+  { "id": "rubik", "name": "Rubik", "family": "Rubik, Inter, system-ui, sans-serif", "category": "sans" },
+  { "id": "space-grotesk", "name": "Space Grotesk", "family": "\"Space Grotesk\", Inter, system-ui, sans-serif", "category": "modern" },
+  { "id": "roboto-mono", "name": "Roboto Mono", "family": "\"Roboto Mono\", ui-monospace, monospace", "category": "mono" },
   { "id": "bebas-neue", "name": "Bebas Neue", "family": "\"Bebas Neue\", Impact, sans-serif", "category": "display" },
   { "id": "anton", "name": "Anton", "family": "Anton, Impact, sans-serif", "category": "display" },
-  { "id": "space-grotesk", "name": "Space Grotesk", "family": "\"Space Grotesk\", Inter, system-ui, sans-serif", "category": "modern" }
+  { "id": "oswald", "name": "Oswald", "family": "Oswald, Impact, sans-serif", "category": "display" },
+  { "id": "playfair", "name": "Playfair Display", "family": "\"Playfair Display\", Georgia, serif", "category": "serif" },
+  { "id": "lobster", "name": "Lobster", "family": "Lobster, cursive", "category": "script" },
+  { "id": "pacifico", "name": "Pacifico", "family": "Pacifico, cursive", "category": "script" },
+  { "id": "permanent-marker", "name": "Permanent Marker", "family": "\"Permanent Marker\", cursive", "category": "hand" }
 ]

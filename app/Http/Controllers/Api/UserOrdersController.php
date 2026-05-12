@@ -72,6 +72,17 @@ class UserOrdersController extends Controller
             ], 422);
         }
 
+        if (filter_var(env('PREFLIGHT_BLOCK_PRODUCTION_SUBMIT', true), FILTER_VALIDATE_BOOLEAN)) {
+            /** @var array<string, mixed>|null $report */
+            $report = $order->project?->preflight_report;
+            if (is_array($report) && ($report['status'] ?? '') === 'error') {
+                return response()->json([
+                    'message' => 'Print readiness check reported blocking issues. Open the editor, fix the problems in Print readiness, and run preflight again before paying.',
+                    'preflight_status' => $report['status'],
+                ], 422);
+            }
+        }
+
         /** @var Payment|null $payment */
         $payment = Payment::query()
             ->where('order_id', $order->id)

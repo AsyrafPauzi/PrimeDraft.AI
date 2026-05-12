@@ -12,6 +12,8 @@ class Project extends Model
         'country_code',
         'status',
         'scratch_layout',
+        'print_profile',
+        'preflight_report',
         'generated_output_url',
         'locked_at',
     ];
@@ -20,6 +22,7 @@ class Project extends Model
     {
         return [
             'scratch_layout' => 'array',
+            'preflight_report' => 'array',
             'locked_at' => 'datetime',
         ];
     }

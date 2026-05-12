@@ -5,7 +5,7 @@ import { AiControlPanel } from '../Components/AIPanel/AiControlPanel';
 
 export function PrimeDraftEditorPage() {
     const [splitPreview, setSplitPreview] = useState(true);
-    const [prompt, setPrompt] = useState('Sample design prompt for actions');
+    const [highFidelityPrompt, setHighFidelityPrompt] = useState('Sample prompt for high-fidelity demo');
 
     return (
         <main className="min-h-screen bg-white text-gray-900">
@@ -16,7 +16,7 @@ export function PrimeDraftEditorPage() {
                     className="rounded border border-gray-400 px-3 py-1 text-sm"
                     type="button"
                 >
-                    {splitPreview ? 'Disable Split Preview' : 'Enable Split Preview'}
+                    {splitPreview ? 'Hide canvas split rail' : 'Show canvas split rail'}
                 </button>
             </header>
             <section className="grid min-h-[calc(100vh-57px)] grid-cols-1 md:grid-cols-[260px_1fr_280px]">
@@ -30,18 +30,23 @@ export function PrimeDraftEditorPage() {
                             className="w-full shrink-0 border-t border-gray-200 bg-gray-50 p-3 text-sm md:w-52 md:border-l md:border-t-0 dark:border-gray-700 dark:bg-gray-900/50"
                             aria-label="AI preview panel"
                         >
-                            <p className="font-medium text-gray-800 dark:text-gray-100">AI High-Fidelity Preview</p>
+                            <p className="font-medium text-gray-800 dark:text-gray-100">Canvas split rail</p>
                             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                Placeholder panel for split preview in the demo editor shell.
+                                In the full editor, the AI preview opens beside the garment with a spinner while images
+                                generate.
                             </p>
                         </aside>
                     ) : null}
                 </div>
                 <AiControlPanel
-                    prompt={prompt}
-                    onPromptChange={setPrompt}
-                    onGenerate={() => window.alert('Trigger /api/projects/{id}/generations')}
-                    onGenerateSimilar={() => window.alert('Trigger similar generation prompt')}
+                    highFidelityPrompt={highFidelityPrompt}
+                    onHighFidelityPromptChange={setHighFidelityPrompt}
+                    onExportCanvasJson={() => window.alert('Demo: export canvas JSON in the full editor')}
+                    onExportPngPreview={() => window.alert('Demo: export PNG preview in the full editor')}
+                    onRunHighFidelity={() => window.alert('Demo: AI high fidelity in the full editor')}
+                    onValidatePrintRules={() => window.alert('Demo: validate print rules in the full editor')}
+                    onExportFinalPng={() => window.alert('Demo: export final PNG in the full editor')}
+                    disabled={false}
                 />
             </section>
         </main>

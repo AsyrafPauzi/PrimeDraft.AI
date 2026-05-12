@@ -128,6 +128,118 @@ export function saveScratchLayout(token, projectId, layout) {
     });
 }
 
+/** OpenAI Images → data URL for immediate canvas layer (server holds API key). */
+export function generateCanvasImage(token, projectId, body) {
+    return apiRequest(`/projects/${projectId}/editor/canvas-image`, {
+        method: 'POST',
+        token,
+        body,
+    });
+}
+
+/** Fabric pipeline: PNG preview + prompt → high-fidelity image (optional OPENAI_IMAGE_EDIT_MODEL). */
+export function fabricHighFidelity(token, projectId, body) {
+    return apiRequest(`/projects/${projectId}/editor/fabric-high-fidelity`, {
+        method: 'POST',
+        token,
+        body,
+    });
+}
+
+/** Print rule check (dpi / color_count); persists a PrintFile row. */
+export function validatePrintFile(token, projectId, body) {
+    return apiRequest(`/projects/${projectId}/print-files/validate`, {
+        method: 'POST',
+        token,
+        body,
+    });
+}
+
+export function pipelineUpscale(token, projectId, imageBase64) {
+    return apiRequest(`/projects/${projectId}/editor/pipeline/upscale`, {
+        method: 'POST',
+        token,
+        body: { image_base64: imageBase64 },
+    });
+}
+
+export function pipelineRemoveBackground(token, projectId, imageBase64) {
+    return apiRequest(`/projects/${projectId}/editor/pipeline/remove-background`, {
+        method: 'POST',
+        token,
+        body: { image_base64: imageBase64 },
+    });
+}
+
+export function pipelineTo300Dpi(token, projectId, body) {
+    return apiRequest(`/projects/${projectId}/editor/pipeline/to-300dpi`, {
+        method: 'POST',
+        token,
+        body,
+    });
+}
+
+export function pipelineVectorize(token, projectId, imageBase64) {
+    return apiRequest(`/projects/${projectId}/editor/pipeline/vectorize`, {
+        method: 'POST',
+        token,
+        body: { image_base64: imageBase64 },
+    });
+}
+
+export function runProjectPreflight(token, projectId, body = {}) {
+    return apiRequest(`/projects/${projectId}/preflight`, {
+        method: 'POST',
+        token,
+        body,
+    });
+}
+
+export function getProjectPreflight(token, projectId) {
+    return apiRequest(`/projects/${projectId}/preflight`, { token });
+}
+
+export function getFactoriesDirectory(token, query = {}) {
+    const params = new URLSearchParams();
+    if (query.country_code) {
+        params.set('country_code', String(query.country_code));
+    }
+    const suffix = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/factories/directory${suffix}`, { token });
+}
+
+export function getMyRfqs(token) {
+    return apiRequest('/rfqs', { token });
+}
+
+export function createRfq(token, projectId, payload = {}) {
+    return apiRequest(`/projects/${projectId}/rfqs`, {
+        method: 'POST',
+        token,
+        body: payload,
+    });
+}
+
+export function submitRfqBid(token, rfqId, payload) {
+    return apiRequest(`/rfqs/${rfqId}/bids`, {
+        method: 'POST',
+        token,
+        body: payload,
+    });
+}
+
+export function acceptRfqBid(token, rfqId, bidId) {
+    return apiRequest(`/rfqs/${rfqId}/accept`, {
+        method: 'POST',
+        token,
+        body: { bid_id: bidId },
+    });
+}
+
+export function getFactoryRfqs(token) {
+    return apiRequest('/factory/rfqs', { token });
+}
+
 export function getSplitPreview(token, projectId) {
     return apiRequest(`/projects/${projectId}/editor/split-preview`, { token });
 }

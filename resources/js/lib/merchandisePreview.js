@@ -85,6 +85,11 @@ export function getMerchandisePreviewUrlForSide(label, sideKey) {
     const side = String(sideKey || 'Front').trim();
     const sides = getSidesForMerchandise(label);
 
+    // Legacy / partial saves may omit `merchandise` while the editor still uses apparel side keys (e.g. "Front side").
+    if (APPAREL_SIDE_ASSETS[side] && !String(label || '').trim()) {
+        return APPAREL_SIDE_ASSETS[side] || APPAREL_SIDE_ASSETS['Front side'];
+    }
+
     if (sides.length === 1) {
         return FLAT_FRONT_ASSET;
     }
@@ -104,6 +109,35 @@ export function getMerchandisePreviewUrlForSide(label, sideKey) {
     return getMerchandisePreviewUrl(label) || FLAT_FRONT_ASSET;
 }
 
+/** Apparel “3D-style” mockup (full garment); print area alignment is tuned for front view. */
+const APPAREL_MOCKUP_BY_SIDE = {
+    'Front side': '/materials/tshirt-blank.svg',
+    'Back side': '/materials/tshirt-back.svg',
+    'Sleeve left': '/materials/tshirt-sleeve-left.svg',
+    'Sleeve right': '/materials/tshirt-sleeve-right.svg',
+};
+
+/**
+ * Mockup-style garment image for preview mode (falls back to flat template when no mockup asset).
+ * @param {string} label Merchandise label
+ * @param {string} [sideKey] Active side
+ * @returns {string|null}
+ */
+export function getMerchandiseMockupUrlForSide(label, sideKey) {
+    const side = String(sideKey || 'Front side').trim();
+    const sides = getSidesForMerchandise(label);
+
+    if (APPAREL_SIDE_ASSETS[side] && !String(label || '').trim()) {
+        return APPAREL_MOCKUP_BY_SIDE[side] || APPAREL_MOCKUP_BY_SIDE['Front side'] || APPAREL_SIDE_ASSETS[side];
+    }
+
+    if (sides.includes('Front side')) {
+        return APPAREL_MOCKUP_BY_SIDE[side] || APPAREL_MOCKUP_BY_SIDE['Front side'] || getMerchandisePreviewUrlForSide(label, sideKey);
+    }
+
+    return getMerchandisePreviewUrlForSide(label, sideKey);
+}
+
 /**
  * Alpha mask used for product color tint. Currently enabled for apparel because
  * those SVGs are transparent silhouettes; returning null avoids tinting whole
@@ -113,6 +147,9 @@ export function getMerchandiseColorMaskUrlForSide(label, sideKey) {
     const side = String(sideKey || 'Front side').trim();
     const sides = getSidesForMerchandise(label);
     if (sides.includes('Front side')) {
+        return APPAREL_SIDE_ASSETS[side] || APPAREL_SIDE_ASSETS['Front side'];
+    }
+    if (APPAREL_SIDE_ASSETS[side] && !String(label || '').trim()) {
         return APPAREL_SIDE_ASSETS[side] || APPAREL_SIDE_ASSETS['Front side'];
     }
     return null;

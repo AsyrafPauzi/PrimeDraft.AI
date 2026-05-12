@@ -4,18 +4,18 @@ import userEvent from '@testing-library/user-event';
 import { PrimeDraftEditorPage } from './PrimeDraftEditorPage';
 
 describe('PrimeDraftEditorPage', () => {
-    test('toggles split preview visibility', async () => {
+    test('toggles split preview rail visibility', async () => {
         const user = userEvent.setup();
 
         render(<PrimeDraftEditorPage />);
 
-        expect(screen.getByText('AI High-Fidelity Preview')).toBeInTheDocument();
+        expect(screen.getByText('Canvas split rail')).toBeInTheDocument();
 
-        await user.click(screen.getByRole('button', { name: 'Disable Split Preview' }));
-        expect(screen.queryByText('AI High-Fidelity Preview')).not.toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Hide canvas split rail' }));
+        expect(screen.queryByText('Canvas split rail')).not.toBeInTheDocument();
 
-        await user.click(screen.getByRole('button', { name: 'Enable Split Preview' }));
-        expect(screen.getByText('AI High-Fidelity Preview')).toBeInTheDocument();
+        await user.click(screen.getByRole('button', { name: 'Show canvas split rail' }));
+        expect(screen.getByText('Canvas split rail')).toBeInTheDocument();
     });
 
     test('calls generate actions from AI panel buttons', async () => {
@@ -25,10 +25,12 @@ describe('PrimeDraftEditorPage', () => {
         render(<PrimeDraftEditorPage />);
 
         await user.click(screen.getByRole('button', { name: 'Generate Design' }));
-        expect(alertSpy).toHaveBeenCalledWith('Trigger /api/projects/{id}/generations');
+        expect(alertSpy).toHaveBeenCalledWith(
+            'Demo: opens split rail + calls API twice (draft + print) in the real editor'
+        );
 
         await user.click(screen.getByRole('button', { name: 'Generate Similar' }));
-        expect(alertSpy).toHaveBeenCalledWith('Trigger similar generation prompt');
+        expect(alertSpy).toHaveBeenCalledWith('Demo: split rail + one OpenAI image in the real editor');
 
         alertSpy.mockRestore();
     });

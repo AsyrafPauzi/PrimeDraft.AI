@@ -1,27 +1,56 @@
 [
     {
+        "id": "factory-flat-white",
+        "label": "Factory flat (print-safe)",
+        "src": "/materials/garment-bg/heather.svg",
+        "factoryNote": "Subtle knit — good under DTF / screen separations."
+    },
+    {
+        "id": "factory-jersey-smooth",
+        "label": "Smooth jersey (DTF)",
+        "src": "/materials/garment-bg/stripe.svg",
+        "factoryNote": "Low-contrast repeat — avoids moiré on fine halftones."
+    },
+    {
+        "id": "factory-denim-flat",
+        "label": "Flat denim weave",
+        "src": "/materials/garment-bg/denim.svg",
+        "factoryNote": "Even texture for color separation previews."
+    },
+    {
+        "id": "factory-camo-soft",
+        "label": "Soft camo (low noise)",
+        "src": "/materials/garment-bg/camo-soft.svg",
+        "factoryNote": "Muted pattern — safer for small type on chest."
+    },
+    {
         "id": "heather",
         "label": "Heather knits",
-        "src": "/materials/garment-bg/heather.svg"
+        "src": "/materials/garment-bg/heather.svg",
+        "factoryNote": "Classic apparel texture."
     },
     {
         "id": "stripe",
         "label": "Stripes",
-        "src": "/materials/garment-bg/stripe.svg"
+        "src": "/materials/garment-bg/stripe.svg",
+        "factoryNote": "Use with care on tiny text; align art to stripe angle."
     },
     {
         "id": "denim",
         "label": "Denim weave",
-        "src": "/materials/garment-bg/denim.svg"
+        "src": "/materials/garment-bg/denim.svg",
+        "factoryNote": "Heavier texture — preview at print size."
     },
     {
         "id": "camo-soft",
         "label": "Soft camo",
-        "src": "/materials/garment-bg/camo-soft.svg"
+        "src": "/materials/garment-bg/camo-soft.svg",
+        "factoryNote": "Lower detail than photo camo."
     },
     {
         "id": "sunset-gradient",
         "label": "Sunset dye",
-        "src": "/materials/garment-bg/sunset.svg"
+        "src": "/materials/garment-bg/sunset.svg",
+        "factoryNote": "Gradient sim — check underprint on dark inks."
     }
 ]

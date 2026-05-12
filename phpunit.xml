@@ -32,5 +32,8 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- Never put real API keys here. Forces mock AI provider during PHPUnit. -->
+        <env name="OPENAI_API_KEY" value=""/>
+        <env name="OPENAI_DISABLE_IN_TESTS" value="1"/>
     </php>
 </phpunit>

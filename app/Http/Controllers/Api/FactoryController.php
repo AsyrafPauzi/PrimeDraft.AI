@@ -7,6 +7,7 @@ use App\Models\Factory;
 use App\Models\Order;
 use App\Models\Project;
 use App\Services\FactoryMatchingService;
+use App\Support\ApparelSizes;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,7 +61,7 @@ class FactoryController extends Controller
                 'message' => 'No factory workspace linked to this account.',
                 'factory' => null,
                 'sizes' => [],
-                'canonical_size_codes' => \App\Support\ApparelSizes::canonicalCodes(),
+                'canonical_size_codes' => ApparelSizes::canonicalCodes(),
             ], 422);
         }
 
@@ -72,7 +73,7 @@ class FactoryController extends Controller
         return response()->json([
             'factory' => ['id' => $factory->id, 'name' => $factory->name, 'country_code' => $factory->country_code],
             'sizes' => $sizes,
-            'canonical_size_codes' => \App\Support\ApparelSizes::canonicalCodes(),
+            'canonical_size_codes' => ApparelSizes::canonicalCodes(),
         ]);
     }
 
@@ -124,6 +125,35 @@ class FactoryController extends Controller
         return response()->json([
             'country_code' => $countryCode,
             'factories' => $this->factoryMatchingService->matchingFactoriesFor($request->user(), $countryCode),
+        ]);
+    }
+
+    /**
+     * Lightweight directory for marketplace / RFQ flows (active factories in a region).
+     */
+    public function directory(Request $request): JsonResponse
+    {
+        $raw = $request->query('country_code');
+        $cc = is_string($raw) && strlen(trim($raw)) >= 2
+            ? strtoupper(substr(trim($raw), 0, 2))
+            : strtoupper((string) $request->user()->country_code);
+
+        $factories = Factory::query()
+            ->where('active', true)
+            ->whereRaw('upper(country_code) = ?', [$cc])
+            ->orderBy('name')
+            ->get(['id', 'name', 'country_code', 'base_price'])
+            ->map(fn (Factory $f): array => [
+                'id' => $f->id,
+                'name' => $f->name,
+                'country_code' => $f->country_code,
+                'base_price' => (float) $f->base_price,
+            ])
+            ->values();
+
+        return response()->json([
+            'country_code' => $cc,
+            'factories' => $factories,
         ]);
     }
 }

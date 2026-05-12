@@ -23,4 +23,9 @@ describe('getMerchandisePreviewUrlForSide', () => {
     it('uses flat template for single-face merchandise', () => {
         expect(getMerchandisePreviewUrlForSide('Sticker', 'Front')).toBe('/materials/flat-front.svg');
     });
+
+    it('infers apparel silhouette when merchandise is missing but side is apparel', () => {
+        expect(getMerchandisePreviewUrlForSide('', 'Front side')).toBe('/materials/tshirt-front.svg');
+        expect(getMerchandisePreviewUrlForSide('', 'Back side')).toBe('/materials/tshirt-back.svg');
+    });
 });
